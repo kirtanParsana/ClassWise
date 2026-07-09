@@ -143,3 +143,4 @@ Built as a minor project by students of **Parul Institute of Technology, Parul U
 ## 📄 License
 
 This project is for academic purposes. All rights reserved © ClassWise Team.
+# ClassWise
