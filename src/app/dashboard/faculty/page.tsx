@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import {
   Table,
   TableBody,
@@ -74,6 +74,7 @@ type PendingCsvRow = {
 };
 
 export default function FacultyPage() {
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [selectedFaculty, setSelectedFaculty] = useState<Faculty | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -236,6 +237,33 @@ export default function FacultyPage() {
     });
 
     setIsDeleteAlertOpen(false);
+    setSelectedFaculty(null);
+  };
+
+  const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedFaculty) return;
+
+    const formData = new FormData(e.currentTarget);
+    const updatedFaculty: Faculty = {
+      ...selectedFaculty,
+      name: formData.get("name") as string,
+      email: formData.get("email") as string,
+      department: formData.get("department") as string,
+    };
+
+    setDocumentNonBlocking(
+      doc(db, "faculties", selectedFaculty.id),
+      updatedFaculty,
+      { merge: true }
+    );
+
+    toast({
+      title: "Success",
+      description: "Faculty member updated.",
+    });
+
+    setIsFormOpen(false);
     setSelectedFaculty(null);
   };
 
@@ -466,6 +494,63 @@ export default function FacultyPage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit faculty dialog */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-headline">Edit Faculty</DialogTitle>
+            <DialogDescription>
+              Update faculty member details.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedFaculty && (
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="faculty-name">Name</Label>
+                <Input
+                  id="faculty-name"
+                  name="name"
+                  defaultValue={selectedFaculty.name}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="faculty-email">Email</Label>
+                <Input
+                  id="faculty-email"
+                  name="email"
+                  type="email"
+                  defaultValue={selectedFaculty.email}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="faculty-department">Department</Label>
+                <Input
+                  id="faculty-department"
+                  name="department"
+                  defaultValue={selectedFaculty.department}
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsFormOpen(false);
+                    setSelectedFaculty(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Save changes</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,10 @@ import {
 import { CalendarPlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleEntry } from "@/lib/types";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 interface TimetableGeneratorProps {
-  onTimetableGenerated: (newSchedule: ScheduleEntry[]) => void;
+  onTimetableGenerated: (newSchedule: ScheduleEntry[], timetableId?: string) => void;
   variant?: "card" | "button";
 }
 
@@ -30,26 +31,33 @@ export function TimetableGenerator({
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/generate-timetable", {
+      const res = await authenticatedFetch("/api/generate-timetable", {
         method: "POST",
+        body: JSON.stringify({}),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Backend error");
+        throw new Error(data.error ?? "Backend error");
       }
 
-      const data = await res.json();
-      onTimetableGenerated(data.schedule ?? []);
+      onTimetableGenerated(data.schedule ?? [], data.timetableId);
+
+      const conflictMsg =
+        data.conflicts?.critical > 0
+          ? ` Generated with ${data.conflicts.critical} critical conflict(s).`
+          : "";
 
       toast({
         title: "Timetable Generated",
-        description: "Timetable successfully generated.",
+        description: `Timetable saved successfully.${conflictMsg}`,
       });
-    } catch {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Generation Failed",
-        description: "Backend could not generate timetable.",
+        description: err instanceof Error ? err.message : "Backend could not generate timetable.",
       });
     } finally {
       setIsLoading(false);

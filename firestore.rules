@@ -1,9 +1,142 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read and write access to all data since authentication is removed.
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userProfileExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasValidRole() {
+      return userProfileExists() && (
+        getUserProfile().role == 'coordinator' ||
+        getUserProfile().role == 'hod' ||
+        getUserProfile().role == 'faculty' ||
+        getUserProfile().role == 'student'
+      );
+    }
+
+    function isActiveUser() {
+      return hasValidRole() && getUserProfile().isActive == true;
+    }
+
+    function isCoordinator() {
+      return isActiveUser() && getUserProfile().role == 'coordinator';
+    }
+
+    function isHOD() {
+      return isActiveUser() && getUserProfile().role == 'hod';
+    }
+
+    function isFaculty() {
+      return isActiveUser() && getUserProfile().role == 'faculty';
+    }
+
+    function isStudent() {
+      return isActiveUser() && getUserProfile().role == 'student';
+    }
+
+    function currentFacultyId() {
+      return getUserProfile().facultyId;
+    }
+
+    function currentStudentSectionId() {
+      return getUserProfile().sectionId;
+    }
+
+    function isPublishedTimetable() {
+      return resource.data.status == 'published';
+    }
+
+    function canReadUnpublishedTimetable() {
+      return isCoordinator() || isHOD();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /courses/{courseId} {
+      allow read: if isActiveUser();
+      allow write: if isCoordinator();
+    }
+
+    match /faculties/{facultyId} {
+      allow read: if isActiveUser();
+      allow write: if isCoordinator();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isActiveUser();
+      allow write: if isCoordinator();
+    }
+
+    match /sections/{sectionId} {
+      allow read: if isActiveUser();
+      allow write: if isCoordinator();
+    }
+
+    match /timeslots/{slotId} {
+      allow read: if isActiveUser();
+      allow write: if isCoordinator();
+    }
+
+    match /timetables/{docId} {
+      allow read: if canReadUnpublishedTimetable() ||
+        (isFaculty() && isPublishedTimetable()) ||
+        (isStudent() && isPublishedTimetable());
+      allow write: if isCoordinator();
+    }
+
+    match /schedules/{entryId} {
+      allow read: if isCoordinator() || isHOD() ||
+        (isFaculty() &&
+          resource.data.facultyId == currentFacultyId() &&
+          resource.data.timetableStatus == 'published') ||
+        (isStudent() &&
+          (resource.data.section == currentStudentSectionId() ||
+           resource.data.sectionId == currentStudentSectionId()) &&
+          resource.data.timetableStatus == 'published');
+      allow write: if isCoordinator();
+    }
+
+    match /conflicts/{conflictId} {
+      allow read: if isCoordinator() || isHOD();
+      allow write: if isCoordinator();
+    }
+
+    match /suggestions/{suggestionId} {
+      allow read: if isCoordinator() || isHOD();
+      allow create: if isHOD();
+      allow update: if isCoordinator();
+      allow delete: if false;
+    }
+
+    match /approvals/{approvalId} {
+      allow read: if isCoordinator() || isHOD();
+      allow write: if false;
+    }
+
+    match /notifications/{nid} {
+      allow read: if isActiveUser() && resource.data.uid == request.auth.uid;
+      allow update: if isActiveUser() && resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if false;
+      allow delete: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

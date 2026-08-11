@@ -1,82 +1,67 @@
-import { NextResponse } from "next/server";
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { cert } from "firebase-admin/app";
+import { NextRequest, NextResponse } from "next/server";
+import { requireRole, authErrorResponse } from "@/lib/server-auth";
+import {
+  getScheduleEntriesForTimetable,
+  runConflictCheck,
+  persistConflicts,
+} from "@/lib/server-timetable";
+import { detectConflicts, countConflicts } from "@/lib/conflict-detection";
+import { adminDb } from "@/firebase/admin";
+import type { Course, Room } from "@/lib/types";
 
-const apps = getApps();
-const app = apps.length === 0 ? initializeApp({
-  credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "{}")),
-}) : apps[0];
-
-const db = getFirestore(app);
-
-/**
- * GET /api/conflicts
- * Detects scheduling conflicts in the generated timetable.
- *
- * Conflict Types:
- * 1. Same faculty assigned to multiple classes at same day & timeslot
- * 2. Same room assigned to multiple classes at same day & timeslot
- */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 1️⃣ Fetch timetable data from Firestore
-    const snapshot = await db.collection("timetable").get();
+    await requireRole(request.headers.get("authorization"), ["coordinator", "hod"]);
 
-    const timetable = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Array<{ id: string; facultyId: string; day: string; timeslot: string; roomId: string; [key: string]: any }>;
+    const timetableId = request.nextUrl.searchParams.get("timetableId");
 
-    // 2️⃣ Prepare conflict detection
-    const conflicts: any[] = [];
+    if (timetableId) {
+      const { conflicts, total, critical, warnings } = await runConflictCheck(timetableId);
+      await persistConflicts(timetableId, conflicts);
 
-    const facultyMap = new Map<string, any>();
-    const roomMap = new Map<string, any>();
+      await adminDb.collection("timetables").doc(timetableId).update({
+        hasCriticalConflicts: critical > 0,
+        unresolvedConflictCount: total,
+      });
 
-    // 3️⃣ Detect conflicts
-    for (const entry of timetable) {
-      const facultyKey = `${entry.facultyId}-${entry.day}-${entry.timeslot}`;
-      const roomKey = `${entry.roomId}-${entry.day}-${entry.timeslot}`;
-
-      // Faculty conflict
-      if (facultyMap.has(facultyKey)) {
-        conflicts.push({
-          type: "FACULTY_CONFLICT",
-          message: "Faculty assigned to multiple classes at the same time",
-          entries: [facultyMap.get(facultyKey), entry],
-        });
-      } else {
-        facultyMap.set(facultyKey, entry);
-      }
-
-      // Room conflict
-      if (roomMap.has(roomKey)) {
-        conflicts.push({
-          type: "ROOM_CONFLICT",
-          message: "Room booked for multiple classes at the same time",
-          entries: [roomMap.get(roomKey), entry],
-        });
-      } else {
-        roomMap.set(roomKey, entry);
-      }
+      return NextResponse.json({ success: true, totalConflicts: total, critical, warnings, conflicts });
     }
 
-    // 4️⃣ Return result
+    const timetablesSnap = await adminDb
+      .collection("timetables")
+      .orderBy("updatedAt", "desc")
+      .limit(1)
+      .get();
+
+    if (timetablesSnap.empty) {
+      return NextResponse.json({ success: true, totalConflicts: 0, critical: 0, warnings: 0, conflicts: [] });
+    }
+
+    const latest = timetablesSnap.docs[0];
+    const schedule = await getScheduleEntriesForTimetable(latest.id);
+
+    const [coursesSnap, roomsSnap] = await Promise.all([
+      adminDb.collection("courses").get(),
+      adminDb.collection("rooms").get(),
+    ]);
+    const courses = coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Course[];
+    const rooms = roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Room[];
+
+    const conflicts = detectConflicts(schedule, courses, rooms);
+    const { total, critical, warnings } = countConflicts(conflicts);
+
     return NextResponse.json({
       success: true,
-      totalConflicts: conflicts.length,
+      totalConflicts: total,
+      critical,
+      warnings,
       conflicts,
+      timetableId: latest.id,
     });
   } catch (error) {
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
     console.error("Conflict detection failed:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to detect timetable conflicts",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to detect timetable conflicts" }, { status: 500 });
   }
 }

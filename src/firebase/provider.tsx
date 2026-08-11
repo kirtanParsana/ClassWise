@@ -1,10 +1,22 @@
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo } from 'react';
+import React, {
+  DependencyList,
+  createContext,
+  useContext,
+  ReactNode,
+  useEffect,
+  useState,
+  useMemo,
+} from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import {
+  Auth,
+  User,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -13,7 +25,6 @@ interface FirebaseProviderProps {
   auth: Auth;
 }
 
-// User state is simplified as authentication is removed.
 export interface FirebaseContextState {
   areServicesAvailable: boolean;
   firebaseApp: FirebaseApp | null;
@@ -39,7 +50,9 @@ export interface UserHookResult {
   userError: Error | null;
 }
 
-export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
+export const FirebaseContext = createContext<FirebaseContextState | undefined>(
+  undefined
+);
 
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
@@ -47,6 +60,36 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firestore,
   auth,
 }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isUserLoading, setIsUserLoading] = useState<boolean>(true);
+  const [userError, setUserError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const servicesAvailable = !!(firebaseApp && firestore && auth);
+    if (!servicesAvailable) {
+      setIsUserLoading(false);
+      return;
+    }
+
+    setIsUserLoading(true);
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (currentUser) => {
+        setUser(currentUser);
+        setUserError(null);
+        setIsUserLoading(false);
+      },
+      (err: Error) => {
+        setUser(null);
+        setUserError(err);
+        setIsUserLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseApp, firestore, auth]);
+
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);
     return {
@@ -54,12 +97,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       firebaseApp: servicesAvailable ? firebaseApp : null,
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
-      // Since auth is removed, user is always null and not loading.
-      user: null,
-      isUserLoading: false,
-      userError: null,
+      user,
+      isUserLoading,
+      userError,
     };
-  }, [firebaseApp, firestore, auth]);
+  }, [firebaseApp, firestore, auth, user, isUserLoading, userError]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -76,8 +118,15 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Firebase core services not available. Check FirebaseProvider props.');
+  if (
+    !context.areServicesAvailable ||
+    !context.firebaseApp ||
+    !context.firestore ||
+    !context.auth
+  ) {
+    throw new Error(
+      'Firebase core services not available. Check FirebaseProvider props.'
+    );
   }
 
   return {
@@ -105,14 +154,17 @@ export const useFirebaseApp = (): FirebaseApp => {
   return firebaseApp;
 };
 
-type MemoFirebase <T> = T & {__memo?: boolean};
+type MemoFirebase<T> = T & { __memo?: boolean };
 
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
+export function useMemoFirebase<T>(
+  factory: () => T,
+  deps: DependencyList
+): T | MemoFirebase<T> {
   const memoized = useMemo(factory, deps);
-  
-  if(typeof memoized !== 'object' || memoized === null) return memoized;
+
+  if (typeof memoized !== 'object' || memoized === null) return memoized;
   (memoized as MemoFirebase<T>).__memo = true;
-  
+
   return memoized;
 }
 

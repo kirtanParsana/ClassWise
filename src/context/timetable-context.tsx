@@ -5,16 +5,21 @@ import type { ScheduleEntry } from '@/lib/types';
 
 interface TimetableContextType {
   schedule: ScheduleEntry[];
-  setSchedule: (schedule: ScheduleEntry[]) => void;
+  setSchedule: React.Dispatch<React.SetStateAction<ScheduleEntry[]>>;
+  activeTimetableId: string | null;
+  setActiveTimetableId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const TimetableContext = createContext<TimetableContextType | undefined>(undefined);
 
 export function TimetableProvider({ children }: { children: ReactNode }) {
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [activeTimetableId, setActiveTimetableId] = useState<string | null>(null);
 
   return (
-    <TimetableContext.Provider value={{ schedule, setSchedule }}>
+    <TimetableContext.Provider
+      value={{ schedule, setSchedule, activeTimetableId, setActiveTimetableId }}
+    >
       {children}
     </TimetableContext.Provider>
   );

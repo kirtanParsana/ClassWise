@@ -1,129 +1,87 @@
-// import { NextResponse } from "next/server";
-// import { adminDb } from "@/firebase/admin";
-// import { generateTimetable } from "@/ai/flows/generate-timetable";
-
-// export async function POST() {
-//   try {
-//     console.log("🚀 Fetching data for timetable generation");
-
-//     // 1️⃣ Fetch data from Firestore
-//     const coursesSnap = await adminDb.collection("courses").get();
-//     const roomsSnap = await adminDb.collection("rooms").get();
-//     const facultySnap = await adminDb.collection("faculties").get();
-//     const timeslotsSnap = await adminDb.collection("timeslots").get();
-
-//     const courses = coursesSnap.docs.map(d => ({ id: d.id, name: d.data().name, code: d.data().code, credits: d.data().credits, facultyId: d.data().facultyId, requiresLab: d.data().requiresLab, ...d.data() }));
-//     const rooms = roomsSnap.docs.map(d => ({ id: d.id, name: d.data().name, capacity: d.data().capacity, isLab: d.data().isLab, ...d.data() }));
-//     const faculty = facultySnap.docs.map(d => ({ id: d.id, name: d.data().name, email: d.data().email, department: d.data().department, avatarUrl: d.data().avatarUrl, avatarHint: d.data().avatarHint, ...d.data() }));
-//     const timeslots = timeslotsSnap.docs.map(d => ({ id: d.id, name: d.data().name, day: d.data().day, order: d.data().order, ...d.data() }));
-
-//     // 2️⃣ Defensive checks
-//     if (!courses.length) throw new Error("No courses found");
-//     if (!rooms.length) throw new Error("No rooms found");
-//     if (!faculty.length) throw new Error("No faculty found");
-//     if (!timeslots.length) throw new Error("No timeslots found");
-
-//     const mappedTimeslots = timeslots.map((t, index) => ({
-//       id: t.id,
-//       name: `${t.day} ${t.startTime}-${t.endTime}`,
-//       day: t.day,
-//       order: index,
-//     }));
-
-
-//     // 3️⃣ Call AI logic CORRECTLY
-//     await generateTimetable({
-//       courses,
-//       faculty,
-//       rooms,
-//       sections: sectionNames,
-//       days,
-//       timeslots: mappedTimeslots,
-//     });
-
-//     console.log("✅ Timetable generated");
-
-//     return NextResponse.json({ success: true });
-//   } catch (error) {
-//     console.error("❌ Timetable generation failed:", error);
-//     return NextResponse.json(
-//       { success: false, error: String(error) },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-import { NextResponse } from "next/server";
-import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase/client";
+import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
+import { adminDb } from "@/firebase/admin";
+import { requireRole, authErrorResponse } from "@/lib/server-auth";
 import { generateTimetable } from "@/ai/flows/generate-timetable";
+import {
+  syncScheduleDocs,
+  runConflictCheck,
+  persistConflicts,
+  fetchMasterDataForLookup,
+} from "@/lib/server-timetable";
+import { defaultTimetableName } from "@/lib/timetable-utils";
+import { omitUndefined } from "@/lib/firestore-utils";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    console.log("🚀 Fetching data for timetable generation");
+    const user = await requireRole(request.headers.get("authorization"), ["coordinator"]);
 
-    const coursesSnap = await getDocs(collection(db, "courses"));
-    const facultySnap = await getDocs(collection(db, "faculties"));
-    const roomsSnap = await getDocs(collection(db, "rooms"));
-    const sectionsSnap = await getDocs(collection(db, "sections"));
-    const timeslotsSnap = await getDocs(collection(db, "timeslots"));
+    let body: { name?: string; academicYear?: string; semester?: number; departmentId?: string } = {};
+    try {
+      body = await request.json();
+    } catch {
+      // empty body is fine
+    }
 
-    
-    const courses = coursesSnap.docs.map(d => ({ id: d.id, name: d.data().name, code: d.data().code, credits: d.data().credits, facultyId: d.data().facultyId, requiresLab: d.data().requiresLab, ...d.data() }));
-    const faculty = facultySnap.docs.map(d => ({ id: d.id, name: d.data().name, email: d.data().email, department: d.data().department, avatarUrl: d.data().avatarUrl, avatarHint: d.data().avatarHint, ...d.data() }));
-    const rooms = roomsSnap.docs.map(d => ({ id: d.id, name: d.data().name, capacity: d.data().capacity, isLab: d.data().isLab, ...d.data() }));   
-    const sectionNames = sectionsSnap.docs.map(d => d.data().name);
+    const coursesSnap = await adminDb.collection("courses").get();
+    const facultySnap = await adminDb.collection("faculties").get();
+    const roomsSnap = await adminDb.collection("rooms").get();
+    const sectionsSnap = await adminDb.collection("sections").get();
+    const timeslotsSnap = await adminDb.collection("timeslots").get();
+
+    const courses = coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Array<{
+      id: string;
+      name: string;
+      code: string;
+      credits: number;
+      facultyId: string;
+      requiresLab: boolean;
+    }>;
+
+    const faculty = facultySnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Array<{
+      id: string;
+      name: string;
+      email: string;
+      department: string;
+      avatarUrl: string;
+      avatarHint: string;
+    }>;
+
+    const rooms = roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Array<{
+      id: string;
+      name: string;
+      capacity: number;
+      isLab: boolean;
+    }>;
+
+    const sections = sectionsSnap.docs.map((d) => d.data());
+    const sectionNames = sections.map((s: { name?: string; id?: string }) => s.name || s.id).filter(Boolean) as string[];
 
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-    const formatTimeSlotName = (startTime: string, endTime: string): string => {
-      // Keep minutes so distinct timeslots don't collapse into one label.
-      return `${startTime}-${endTime}`;
-    };
 
     const mappedTimeslots = timeslotsSnap.docs
       .map((doc) => {
         const t = doc.data();
-        if (t.isBreak) {
-          return null;
-        }
-        const timeSlotName = formatTimeSlotName(t.startTime || '9:00', t.endTime || '10:00');
-        
-        // Calculate order based on start time if not provided
+        if (t.isBreak) return null;
+        const timeSlotName = `${t.startTime || "9:00"}-${t.endTime || "10:00"}`;
         let order = t.order;
         if (order === undefined || order === null) {
-          const startHour = parseInt(t.startTime?.split(':')[0] || '9', 10);
-          const startMin = parseInt(t.startTime?.split(':')[1] || '0', 10);
-          order = startHour * 60 + startMin; // Convert to minutes for sorting
+          const startHour = parseInt(t.startTime?.split(":")[0] || "9", 10);
+          const startMin = parseInt(t.startTime?.split(":")[1] || "0", 10);
+          order = startHour * 60 + startMin;
         }
-        
-        return {
-          id: doc.id,
-          name: timeSlotName,
-          day: t.day,
-          order: order,
-        };
+        return { id: doc.id, name: timeSlotName, day: t.day, order, startTime: t.startTime, endTime: t.endTime };
       })
-      .filter((slot): slot is { id: string; name: string; day: string; order: number } => slot !== null)
+      .filter((slot): slot is NonNullable<typeof slot> => slot !== null)
       .sort((a, b) => {
-        // Sort by day first, then by order
-        const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
         const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
         if (dayDiff !== 0) return dayDiff;
         return a.order - b.order;
       });
 
-    console.log("📅 Mapped timeslots:", mappedTimeslots.length);
-    console.log("📅 Sample timeslots:", mappedTimeslots.slice(0, 5).map(t => `${t.day} ${t.name} (order: ${t.order})`));
-
-    if (
-      !courses.length ||
-      !faculty.length ||
-      !rooms.length ||
-      !sectionNames.length ||
-      !mappedTimeslots.length
-    ) {
-      throw new Error("Missing required data");
+    if (!courses.length || !faculty.length || !rooms.length || !sectionNames.length || !mappedTimeslots.length) {
+      return NextResponse.json({ success: false, error: "Missing required data for generation" }, { status: 400 });
     }
 
     const result = await generateTimetable({
@@ -135,44 +93,58 @@ export async function POST() {
       timeslots: mappedTimeslots,
     });
 
-    console.log("✅ Timetable generated", { scheduleCount: result.schedule.length });
-    
-    // Log sample schedule entries for debugging
-    if (result.schedule.length > 0) {
-      console.log("📋 Sample schedule entries:", result.schedule.slice(0, 3).map(e => ({
-        day: e.day,
-        timeslot: e.timeslot,
-        section: e.section,
-        courseId: e.courseId.substring(0, 8) + '...',
-      })));
-    } else {
-      console.warn("⚠️ No schedule entries generated!");
+    if (!result.schedule.length) {
+      return NextResponse.json({ success: false, error: "No schedule entries generated" }, { status: 500 });
     }
 
-    // Persist generated timetable so it can be viewed/edited later.
-    // Run this in the background so the client doesn't wait for Firestore.
-    addDoc(collection(db, "timetables"), {
-      createdAt: serverTimestamp(),
-      sections: sectionNames,
-      days,
-      schedule: result.schedule,
-    })
-      .then(() => {
-        console.log("💾 Saved generated timetable to Firestore");
+    const academicYear = body.academicYear ?? new Date().getFullYear().toString();
+    const semester = body.semester ?? user.profile.semester;
+    const departmentId = body.departmentId ?? user.profile.departmentId;
+    const name = body.name ?? defaultTimetableName(academicYear, semester);
+
+    const timetableRef = adminDb.collection("timetables").doc();
+    const timetableId = timetableRef.id;
+
+    const lookup = await fetchMasterDataForLookup();
+    const { conflicts, critical, warnings, total } = await (async () => {
+      const { detectConflicts, countConflicts } = await import("@/lib/conflict-detection");
+      const detected = detectConflicts(result.schedule, lookup.courses, lookup.rooms);
+      return { conflicts: detected, ...countConflicts(detected), total: detected.length };
+    })();
+
+    await timetableRef.set(
+      omitUndefined({
+        name,
+        academicYear,
+        semester,
+        departmentId,
+        status: "generated",
+        version: 1,
+        sections: sectionNames,
+        days,
+        schedule: result.schedule,
+        createdBy: user.uid,
+        createdByName: user.profile.name,
+        hasCriticalConflicts: critical > 0,
+        unresolvedConflictCount: total,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       })
-      .catch((saveError) => {
-        console.error("⚠️ Failed to save timetable history", saveError);
-      });
+    );
+
+    await syncScheduleDocs(timetableId, result.schedule, "generated", lookup);
+    await persistConflicts(timetableId, conflicts);
 
     return NextResponse.json({
       success: true,
+      timetableId,
       schedule: result.schedule,
+      conflicts: { total, critical, warnings },
     });
   } catch (error) {
-    console.error("❌ Timetable generation failed:", error);
-    return NextResponse.json(
-      { success: false, error: String(error) },
-      { status: 500 }
-    );
+    const authResp = authErrorResponse(error);
+    if (authResp) return authResp;
+    console.error("Timetable generation failed:", error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
