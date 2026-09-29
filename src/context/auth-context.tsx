@@ -2,6 +2,7 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setErrorMessage(null);
   };
 
-  const resolveProfile = async (firebaseUser: FirebaseUser | null) => {
+  const resolveProfile = useCallback(async (firebaseUser: FirebaseUser | null) => {
     if (!firebaseUser) {
       setUser(null);
       setProfile(null);
@@ -154,15 +155,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (!user) return;
     setStatus("loading");
     await resolveProfile(user);
-  };
+  }, [user, resolveProfile]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setStatus("loading");
     try {
       await authSignOut();
@@ -176,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearErrorState();
       setStatus("unauthenticated");
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -189,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [resolveProfile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -204,7 +205,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshProfile,
     }),
-    [user, profile, role, loading, isAuthenticated, status, error, errorMessage]
+    [
+      user,
+      profile,
+      role,
+      loading,
+      isAuthenticated,
+      status,
+      error,
+      errorMessage,
+      logout,
+      refreshProfile,
+    ]
   );
 
   return (

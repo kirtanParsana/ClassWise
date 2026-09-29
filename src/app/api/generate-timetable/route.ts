@@ -11,12 +11,26 @@ import {
 } from "@/lib/server-timetable";
 import { defaultTimetableName } from "@/lib/timetable-utils";
 import { omitUndefined } from "@/lib/firestore-utils";
+import { validateTimetable } from "@/lib/timetable-validation";
+import { scoreTimetable } from "@/lib/timetable-scoring";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireRole(request.headers.get("authorization"), ["coordinator"]);
 
-    let body: { name?: string; academicYear?: string; semester?: number; departmentId?: string } = {};
+    const userDepartmentId = user.profile.departmentId;
+
+    if (!userDepartmentId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your account is not assigned to a department",
+        },
+        { status: 403 }
+      );
+    }
+
+    let body: { name?: string; academicYear?: string; semester?: number; } = {};
     try {
       body = await request.json();
     } catch {
@@ -99,18 +113,67 @@ export async function POST(request: NextRequest) {
 
     const academicYear = body.academicYear ?? new Date().getFullYear().toString();
     const semester = body.semester ?? user.profile.semester;
-    const departmentId = body.departmentId ?? user.profile.departmentId;
+    const departmentId = userDepartmentId;
     const name = body.name ?? defaultTimetableName(academicYear, semester);
 
     const timetableRef = adminDb.collection("timetables").doc();
     const timetableId = timetableRef.id;
 
     const lookup = await fetchMasterDataForLookup();
-    const { conflicts, critical, warnings, total } = await (async () => {
-      const { detectConflicts, countConflicts } = await import("@/lib/conflict-detection");
-      const detected = detectConflicts(result.schedule, lookup.courses, lookup.rooms);
-      return { conflicts: detected, ...countConflicts(detected), total: detected.length };
-    })();
+
+    const validation = validateTimetable({
+      schedule: result.schedule,
+      courses: lookup.courses,
+      faculty: lookup.faculty,
+      rooms: lookup.rooms,
+      sections: lookup.sections,
+      timeslots: lookup.timeslots,
+      days,
+    });
+
+    if (!validation.valid) {
+      console.error("❌ Timetable validation failed", {
+        errors: validation.errors,
+        warnings: validation.warnings,
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Generated timetable failed validation",
+          validation: {
+            valid: false,
+            errors: validation.errors,
+            warnings: validation.warnings,
+            checkedEntries: validation.checkedEntries,
+          },
+        },
+        { status: 422 }
+      );
+    }
+
+    const qualityScore = scoreTimetable({
+      schedule: result.schedule,
+      courses: lookup.courses,
+      faculty: lookup.faculty,
+      rooms: lookup.rooms,
+      sections: lookup.sections,
+      timeslots: lookup.timeslots,
+    });
+
+    console.log("📊 Timetable quality score", qualityScore);
+
+    const { detectConflicts, countConflicts } = await import(
+      "@/lib/conflict-detection"
+    );
+
+    const conflicts = detectConflicts(
+      result.schedule,
+      lookup.courses,
+      lookup.rooms
+    );
+
+    const { critical, warnings, total } = countConflicts(conflicts);
 
     await timetableRef.set(
       omitUndefined({
@@ -140,6 +203,7 @@ export async function POST(request: NextRequest) {
       timetableId,
       schedule: result.schedule,
       conflicts: { total, critical, warnings },
+      quality: qualityScore,
     });
   } catch (error) {
     const authResp = authErrorResponse(error);

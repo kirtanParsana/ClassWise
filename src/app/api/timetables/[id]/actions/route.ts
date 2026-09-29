@@ -5,6 +5,7 @@ import { requireRole, authErrorResponse } from "@/lib/server-auth";
 import {
   getTimetableData,
   getScheduleEntriesForTimetable,
+  authorizeTimetableAccess,
   transitionTimetableStatus,
   runConflictCheck,
   persistConflicts,
@@ -63,6 +64,8 @@ async function handleSubmit(request: NextRequest, timetableId: string) {
   const timetable = await getTimetableData(timetableId);
   if (!timetable) return NextResponse.json({ success: false, error: "Timetable not found" }, { status: 404 });
 
+  authorizeTimetableAccess(user, timetable, "submit");
+
   const schedule = await getScheduleEntriesForTimetable(timetableId);
   if (!schedule.length) {
     return NextResponse.json({ success: false, error: "Timetable has no schedule entries" }, { status: 400 });
@@ -104,6 +107,8 @@ async function handleRequestChanges(
   const user = await requireRole(request.headers.get("authorization"), ["hod"]);
   const timetable = await getTimetableData(timetableId);
   if (!timetable) return NextResponse.json({ success: false, error: "Timetable not found" }, { status: 404 });
+
+  authorizeTimetableAccess(user, timetable, "request-changes");
 
   const reason = body.reason ?? body.message;
   if (!reason?.trim()) {
@@ -163,6 +168,8 @@ async function handleApprove(
   const timetable = await getTimetableData(timetableId);
   if (!timetable) return NextResponse.json({ success: false, error: "Timetable not found" }, { status: 404 });
 
+  authorizeTimetableAccess(user, timetable, "submit");
+
   if (timetable.status !== "under_review") {
     return NextResponse.json({ success: false, error: "Only timetables under review can be approved" }, { status: 400 });
   }
@@ -215,6 +222,8 @@ async function handlePublish(request: NextRequest, timetableId: string) {
   const user = await requireRole(request.headers.get("authorization"), ["hod"]);
   const timetable = await getTimetableData(timetableId);
   if (!timetable) return NextResponse.json({ success: false, error: "Timetable not found" }, { status: 404 });
+
+  authorizeTimetableAccess(user, timetable, "publish");
 
   if (timetable.status !== "approved") {
     return NextResponse.json({ success: false, error: "Only approved timetables can be published" }, { status: 400 });
@@ -298,6 +307,10 @@ async function handleSave(
   const user = await requireRole(request.headers.get("authorization"), ["coordinator"]);
   const timetable = await getTimetableData(timetableId);
   if (!timetable) return NextResponse.json({ success: false, error: "Timetable not found" }, { status: 404 });
+
+  authorizeTimetableAccess(user, timetable, "save");
+
+  authorizeTimetableAccess(user, timetable, "resubmit");
 
   const status = timetable.status as string;
   if (status === "under_review" || status === "approved" || status === "published") {

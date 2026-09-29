@@ -3,7 +3,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, CalendarRange, UserCircle2, GraduationCap, LayoutGrid, Hash } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, CalendarRange, UserCircle2, GraduationCap, LayoutGrid, Hash, ArrowRight, Clock, MapPin, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { usePublishedSchedulesForSection } from "@/hooks/use-published-schedules";
@@ -19,6 +20,7 @@ export default function StudentDashboardPage() {
     return (
       <div className="flex flex-col gap-8">
         <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-32 w-full" />
         <div className="grid gap-6 lg:grid-cols-2">
           <Skeleton className="h-64" />
           <Skeleton className="h-64" />
@@ -27,78 +29,127 @@ export default function StudentDashboardPage() {
     );
   }
 
+  // Derive next class from today's schedule if available
+  const nextClass = schedules.length > 0 ? schedules[0] : null;
+
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-headline text-3xl font-semibold tracking-tight">
-            Welcome, {profile?.name ?? "Student"}
-          </h1>
-          <Badge variant="outline" className="text-sm">
-            Student
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          View your class schedule, weekly timetable, and manage your profile.
-        </p>
-        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          {profile?.studentId && (
-            <div className="flex items-center gap-2">
-              <UserCircle2 className="h-4 w-4" />
-              <span>Student ID: {profile.studentId}</span>
+      {/* Header Banner */}
+      <div className="flex flex-col gap-2 border-b pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
+                Welcome back, {profile?.name ?? "Student"}
+              </h1>
+              <Badge variant="outline" className="text-xs font-semibold px-2.5 py-0.5">
+                Student
+              </Badge>
             </div>
-          )}
-          {profile?.sectionId && (
-            <div className="flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4" />
-              <span>Section: {profile.sectionId}</span>
-            </div>
-          )}
-          {profile?.semester && (
-            <div className="flex items-center gap-2">
-              <Hash className="h-4 w-4" />
-              <span>Semester: {profile.semester}</span>
-            </div>
-          )}
+            <p className="text-sm text-muted-foreground">
+              Track your upcoming classes, weekly section schedule, and room assignments.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link href="/student/timetable">
+              <Button size="sm" className="gap-2 font-medium shadow-xs">
+                <CalendarRange className="h-4 w-4" />
+                View Full Timetable
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
+      {/* Next Class Featured Highlight Card */}
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/[0.04] to-transparent shadow-xs">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold tracking-wider">
+              Next Class
+            </Badge>
+            <Link href="/student/timetable">
+              <Button variant="ghost" size="sm" className="text-xs text-primary gap-1">
+                <span>View full timetable</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {nextClass ? (
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+              <div className="space-y-1">
+                <h3 className="text-2xl font-bold font-headline text-foreground flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  {nextClass.courseName || nextClass.courseId}
+                </h3>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground pt-1">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    {nextClass.startTime} – {nextClass.endTime}
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    Room {nextClass.roomName || nextClass.roomId}
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                    Section {nextClass.section}
+                  </span>
+                </div>
+              </div>
+
+              <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold">
+                Upcoming Today
+              </Badge>
+            </div>
+          ) : (
+            <div className="py-2 text-sm text-muted-foreground">
+              No immediate upcoming class scheduled for today. Check your full weekly timetable for details.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Academic Information Summary Row */}
       <Card>
-        <CardHeader>
-          <CardTitle className="font-headline text-lg flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-purple-500" />
+        <CardHeader className="pb-3">
+          <CardTitle className="font-headline text-base font-bold flex items-center gap-2">
+            <GraduationCap className="h-4 w-4 text-primary" />
             Academic Information
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="p-4 rounded-lg bg-muted/50">
+          <div className="p-3.5 rounded-lg border bg-muted/30">
             <p className="text-xs font-medium text-muted-foreground mb-1">Student ID</p>
-            <p className="text-lg font-semibold font-headline">{profile?.studentId ?? "—"}</p>
+            <p className="text-lg font-bold font-headline text-foreground">{profile?.studentId ?? "—"}</p>
           </div>
-          <div className="p-4 rounded-lg bg-muted/50">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Section</p>
-            <p className="text-lg font-semibold font-headline">{profile?.sectionId ?? "—"}</p>
+          <div className="p-3.5 rounded-lg border bg-muted/30">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Assigned Section</p>
+            <p className="text-lg font-bold font-headline text-foreground">{profile?.sectionId ?? "—"}</p>
           </div>
-          <div className="p-4 rounded-lg bg-muted/50">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Semester</p>
-            <p className="text-lg font-semibold font-headline">{profile?.semester ?? "—"}</p>
+          <div className="p-3.5 rounded-lg border bg-muted/30">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Current Semester</p>
+            <p className="text-lg font-bold font-headline text-foreground">{profile?.semester ? `Semester ${profile.semester}` : "—"}</p>
           </div>
         </CardContent>
       </Card>
 
+      {/* Schedule Detail Grids */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle className="font-headline text-lg flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-blue-500" />
-              Today&apos;s Schedule
+            <CardTitle className="font-headline text-lg font-bold flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              Today&apos;s Classes
             </CardTitle>
-            <CardDescription>Published classes for your section today.</CardDescription>
+            <CardDescription className="text-xs">Published classes for your section today</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-grow">
             {!profile?.sectionId ? (
-              <p className="text-sm text-destructive">
-                Your profile is missing a section ID. Contact the administrator.
+              <p className="text-xs text-destructive">
+                Your profile is missing a section ID. Please contact your coordinator.
               </p>
             ) : (
               <TodayScheduleSummary
@@ -113,68 +164,48 @@ export default function StudentDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle className="font-headline text-lg flex items-center gap-2">
-              <CalendarRange className="h-5 w-5 text-green-500" />
-              Weekly Timetable
+            <CardTitle className="font-headline text-lg font-bold flex items-center gap-2">
+              <CalendarRange className="h-4 w-4 text-emerald-600" />
+              Weekly Overview
             </CardTitle>
-            <CardDescription>Your section&apos;s published weekly schedule.</CardDescription>
+            <CardDescription className="text-xs">Your section&apos;s complete published weekly schedule</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-grow">
             {scheduleLoading ? (
-              <div className="flex h-40 items-center justify-center">
+              <div className="flex h-32 items-center justify-center">
                 <Skeleton className="h-8 w-8 rounded-full" />
               </div>
             ) : schedules.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed rounded-lg">
-                <CalendarRange className="h-10 w-10 text-muted-foreground mb-3" />
-                <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed rounded-lg">
+                <CalendarRange className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-xs font-medium text-muted-foreground">
                   No timetable has been published for your section yet.
                 </p>
-                <Link href="/student/timetable" className="mt-3 text-xs text-primary hover:underline">
-                  Go to timetable page →
-                </Link>
               </div>
             ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {schedules.length} published class{schedules.length === 1 ? "" : "es"} this week.
-                </p>
-                <Link href="/student/timetable" className="inline-flex text-sm text-primary hover:underline">
-                  Open full weekly timetable →
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900">
+                  <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">
+                    {schedules.length} scheduled class{schedules.length === 1 ? "" : "es"} this week.
+                  </p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                    Your timetable is up to date with the latest section room allocations.
+                  </p>
+                </div>
+
+                <Link href="/student/timetable" className="block">
+                  <Button variant="outline" className="w-full text-xs font-medium gap-1.5">
+                    <span>Open Interactive Weekly Grid</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
                 </Link>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline text-lg">Quick Links</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2">
-          <Link
-            href="/student/timetable"
-            className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors border border-transparent hover:border-border"
-          >
-            <p className="text-sm font-medium flex items-center gap-2">
-              <CalendarRange className="h-4 w-4" />
-              My Timetable
-            </p>
-          </Link>
-          <Link
-            href="/student/profile"
-            className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors border border-transparent hover:border-border"
-          >
-            <p className="text-sm font-medium flex items-center gap-2">
-              <UserCircle2 className="h-4 w-4" />
-              My Profile
-            </p>
-          </Link>
-        </CardContent>
-      </Card>
     </div>
   );
 }

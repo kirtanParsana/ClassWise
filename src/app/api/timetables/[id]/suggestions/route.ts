@@ -2,14 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/firebase/admin";
 import { requireRole, authErrorResponse } from "@/lib/server-auth";
+import {
+  getTimetableData,
+  authorizeTimetableAccess,
+} from "@/lib/server-timetable";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole(request.headers.get("authorization"), ["hod"]);
+    const user = await requireRole(
+      request.headers.get("authorization"),
+      ["hod"]
+    );
+
     const { id: timetableId } = await params;
+
+    const timetable = await getTimetableData(timetableId);
+
+    if (!timetable) {
+      return NextResponse.json(
+        { success: false, error: "Timetable not found" },
+        { status: 404 }
+      );
+    }
+
+    authorizeTimetableAccess(user, timetable, "create-suggestion");
+
     const body = await request.json();
 
     if (!body.message?.trim()) {
@@ -42,9 +62,24 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole(request.headers.get("authorization"), ["coordinator", "hod"]);
+    const user = await requireRole(
+      request.headers.get("authorization"),
+      ["coordinator", "hod"]
+    );
+
     const { id: timetableId } = await params;
 
+    const timetable = await getTimetableData(timetableId);
+
+    if (!timetable) {
+      return NextResponse.json(
+        { success: false, error: "Timetable not found" },
+        { status: 404 }
+      );
+    }
+
+    authorizeTimetableAccess(user, timetable, "view");
+    
     const snap = await adminDb
       .collection("suggestions")
       .where("timetableId", "==", timetableId)

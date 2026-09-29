@@ -35,7 +35,7 @@ export default function StudentProfilePage() {
             Coming Soon
           </CardTitle>
           <CardDescription className="max-w-md mx-auto mt-2">
-            The student profile management page is under construction. You'll be able to view and update your personal details, enrollment information, and preferences here.
+            The student profile management page is under construction. You&apos;ll be able to view and update your personal details, enrollment information, and preferences here.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">

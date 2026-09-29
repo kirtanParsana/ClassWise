@@ -228,7 +228,12 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
   }
 
   // Generate schedule entries for each course-section combination
-  for (const course of shuffle(courses)) {
+  for (const course of [...courses].sort((a, b) => {
+    if (a.requiresLab !== b.requiresLab) {
+      return a.requiresLab ? -1 : 1;
+    }
+    return b.credits - a.credits;
+  })) {
     // Note: faculty may be shared across multiple course rows with the same code.
     // We will resolve the effective faculty per (course.code, section) below.
 
@@ -241,7 +246,7 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
 
     console.log(`📚 Processing course: ${course.code} (${course.name}) - ${course.requiresLab ? 'Lab' : 'Classroom'}, Credits: ${course.credits}`);
 
-    for (const section of shuffle(sections)) {
+    for (const section of [...sections].sort((a, b) => a.localeCompare(b))) {
       console.log(`  📖 Section: ${section}`);
       // Resolve the single faculty that will teach this subject in this section
       const effectiveFacultyId = getFacultyForCourseSection(course, section);

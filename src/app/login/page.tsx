@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bot, CalendarDays, Users, Building2, BookOpen } from "lucide-react";
+import { CalendarDays, ShieldCheck, Cpu } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -11,24 +11,19 @@ import { getRoleDashboardPath } from "@/lib/rbac";
 
 const features = [
   {
+    icon: Cpu,
+    title: "1. Intelligent Scheduling",
+    description: "Generate conflict-free academic timetables with automated constraints.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "2. Role-Based Access",
+    description: "Tailored workspaces for Time Coordinators, HODs, Faculty, and Students.",
+  },
+  {
     icon: CalendarDays,
-    title: "Smart Timetabling",
-    description: "AI-powered timetable generation with conflict-free scheduling",
-  },
-  {
-    icon: Users,
-    title: "Role-Based Access",
-    description: "Dedicated dashboards for coordinators, HODs, faculty & students",
-  },
-  {
-    icon: Building2,
-    title: "Resource Management",
-    description: "Track rooms, faculty, sections and time slots in one place",
-  },
-  {
-    icon: BookOpen,
-    title: "Course Organization",
-    description: "Structured course planning with semester-wise organization",
+    title: "3. Resource Optimization",
+    description: "Maximize room utilization, faculty availability, and section balance.",
   },
 ];
 
@@ -78,56 +73,52 @@ function LoginPageContent() {
   return (
     <div className="min-h-screen bg-background">
       <div className="min-h-screen grid lg:grid-cols-2">
-        <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary via-primary-900 to-primary-800 text-primary-foreground p-12 relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:32px_32px]" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-primary-foreground/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary-foreground/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        {/* Left Side Branding Column */}
+        <div className="hidden lg:flex flex-col justify-between bg-slate-900 text-slate-100 p-12 relative overflow-hidden border-r border-slate-800">
+          <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40" />
 
           <div className="relative z-10">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-foreground/20 backdrop-blur-sm shadow-lg">
-                <Bot className="h-7 w-7" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md">
+                <CalendarDays className="h-6 w-6" />
               </div>
               <div className="flex flex-col leading-tight">
-                <h1 className="text-2xl font-headline font-bold tracking-tight">
+                <h1 className="text-2xl font-headline font-bold tracking-tight text-white">
                   ClassWise
                 </h1>
-                <p className="text-sm text-primary-foreground/70">
+                <p className="text-xs text-slate-400 font-medium tracking-wide">
                   Smart timetable studio
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="relative z-10 space-y-10">
+          <div className="relative z-10 space-y-8 my-auto">
             <div className="space-y-3">
-              <h2 className="text-4xl font-headline font-bold leading-tight tracking-tight">
-                Intelligent timetable
-                <br />
-                planning, simplified.
+              <h2 className="text-3xl font-headline font-bold leading-tight tracking-tight text-white sm:text-4xl">
+                Intelligent timetable planning, simplified.
               </h2>
-              <p className="text-lg text-primary-foreground/80 max-w-md leading-relaxed">
-                Streamline class scheduling, resolve conflicts automatically, and
-                give every role a tailored view of what matters.
+              <p className="text-base text-slate-300 max-w-md leading-relaxed">
+                Generate conflict-free academic schedules, optimize resources, and give every role a focused view of what matters.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 max-w-md">
+            <div className="grid grid-cols-1 gap-4 max-w-md">
               {features.map((feature) => {
                 const Icon = feature.icon;
                 return (
                   <div
                     key={feature.title}
-                    className="flex items-start gap-4 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10"
+                    className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 shadow-sm"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-foreground/15">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="font-semibold text-base leading-none">
+                      <h3 className="font-semibold text-sm text-slate-100 leading-none">
                         {feature.title}
                       </h3>
-                      <p className="text-sm text-primary-foreground/70 leading-relaxed">
+                      <p className="text-xs text-slate-400 leading-relaxed">
                         {feature.description}
                       </p>
                     </div>
@@ -137,22 +128,23 @@ function LoginPageContent() {
             </div>
           </div>
 
-          <div className="relative z-10 text-sm text-primary-foreground/60">
-            © {new Date().getFullYear()} ClassWise. Built for academic excellence.
+          <div className="relative z-10 text-xs text-slate-500 font-medium">
+            © {new Date().getFullYear()} ClassWise Academic Scheduling. Institutional SaaS Platform.
           </div>
         </div>
 
-        <div className="flex items-center justify-center p-6 sm:p-8 lg:p-12">
+        {/* Right Side Form Column */}
+        <div className="flex items-center justify-center p-6 sm:p-8 lg:p-12 bg-muted/20">
           <div className="w-full max-w-md">
             <div className="lg:hidden flex flex-col items-center mb-8 space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
-                <Bot className="h-7 w-7" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+                <CalendarDays className="h-6 w-6" />
               </div>
               <div className="text-center space-y-1">
                 <h1 className="text-2xl font-headline font-bold tracking-tight">
                   ClassWise
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground font-medium">
                   Smart timetable studio
                 </p>
               </div>

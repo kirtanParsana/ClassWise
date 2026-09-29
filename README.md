@@ -17,7 +17,6 @@ ClassWise streamlines the complex task of academic scheduling by combining intel
 ---
 
 ## 🛠 Tech Stack
-
 | Layer | Technology |
 |-------|-----------|
 | Framework | [Next.js 14](https://nextjs.org/) (App Router) |

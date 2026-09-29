@@ -1,255 +1,3 @@
-// 'use client';
-
-// import { useState, useEffect } from "react";
-// import {
-//   Card,
-//   CardContent,
-//   CardHeader,
-//   CardTitle,
-//   CardDescription,
-// } from "@/components/ui/card";
-// import {
-//   Tabs,
-//   TabsContent,
-//   TabsList,
-//   TabsTrigger,
-// } from "@/components/ui/tabs";
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
-
-// import TimetableView from "@/components/timetable/timetable-view";
-// import { ImprovementSuggester } from "@/components/timetable/improvement-suggester";
-// import { TimetableGenerator } from "@/components/timetable/timetable-generator";
-
-// import { ScheduleEntry, Faculty, Room, Section } from "@/lib/types";
-// import { Loader2 } from "lucide-react";
-
-// import { collection } from "firebase/firestore";
-// import { db } from "@/firebase/client";
-// import { useCollection } from "@/firebase/firestore/use-collection";
-
-// import { useTimetable } from "@/context/timetable-context";
-
-// export default function TimetablePage() {
-//   const { schedule, setSchedule } = useTimetable();
-
-//   const [viewBy, setViewBy] = useState<
-//     'generate' | 'section' | 'faculty' | 'room'
-//   >(schedule.length > 0 ? 'section' : 'generate');
-
-//   /* ---------- FETCH MASTER DATA ---------- */
-
-//   const { data: facultyData, loading: isLoadingFaculty } =
-//     useCollection<Faculty>(collection(db, 'faculties'));
-
-//   const { data: roomsData, loading: isLoadingRooms } =
-//     useCollection<Room>(collection(db, 'rooms'));
-
-//   const { data: sectionsData, loading: isLoadingSections } =
-//     useCollection<Section>(collection(db, 'sections'));
-
-//   /* ---------- DERIVED DATA ---------- */
-
-//   const generatedSections = [
-//     ...new Set(schedule.map(s => s.section)),
-//   ].sort();
-
-//   const faculty = facultyData ?? [];
-//   const rooms = roomsData ?? [];
-//   const sections = sectionsData ?? [];
-
-//   /* ---------- FILTER STATE ---------- */
-
-//   const [selectedSection, setSelectedSection] = useState('');
-//   const [selectedFaculty, setSelectedFaculty] = useState('');
-//   const [selectedRoom, setSelectedRoom] = useState('');
-
-//   /* ---------- EFFECT: AUTO-SELECT DEFAULTS ---------- */
-
-//   useEffect(() => {
-//     const hasSchedule = schedule.length > 0;
-
-//     if (hasSchedule && viewBy === 'generate') {
-//       setViewBy('section');
-//     }
-
-//     if (generatedSections.length > 0 && !selectedSection) {
-//       setSelectedSection(generatedSections[0]);
-//     }
-
-//     if (faculty.length > 0 && !selectedFaculty) {
-//       setSelectedFaculty(faculty[0].id);
-//     }
-
-//     if (rooms.length > 0 && !selectedRoom) {
-//       setSelectedRoom(rooms[0].id);
-//     }
-//   }, [
-//     schedule,
-//     viewBy,
-//     generatedSections,
-//     faculty,
-//     rooms,
-//     selectedSection,
-//     selectedFaculty,
-//     selectedRoom,
-//   ]);
-
-//   /* ---------- CALLBACK FROM GENERATOR ---------- */
-
-//   const handleTimetableGenerated = (newSchedule: ScheduleEntry[]) => {
-//     setSchedule(newSchedule);
-
-//     const newSections = [
-//       ...new Set(newSchedule.map(s => s.section)),
-//     ].sort();
-
-//     if (newSections.length > 0) {
-//       setViewBy('section');
-//       setSelectedSection(newSections[0]);
-//     } else {
-//       setViewBy('generate');
-//       setSelectedSection('');
-//     }
-//   };
-
-//   const dataIsLoading =
-//     isLoadingFaculty || isLoadingRooms || isLoadingSections;
-
-//   /* ---------- RENDER ---------- */
-
-//   return (
-//     <div className="space-y-6">
-//       <Card>
-//         <CardHeader className="flex flex-row items-center justify-between">
-//           <div>
-//             <CardTitle className="font-headline">Timetables</CardTitle>
-//             <CardDescription>
-//               Generate and view timetables by section, faculty, or room.
-//             </CardDescription>
-//           </div>
-//           <ImprovementSuggester schedule={schedule} />
-//         </CardHeader>
-
-//         <CardContent>
-//           {dataIsLoading ? (
-//             <div className="flex justify-center items-center h-64">
-//               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-//             </div>
-//           ) : (
-//             <Tabs
-//               value={viewBy}
-//               onValueChange={(v) =>
-//                 setViewBy(v as 'generate' | 'section' | 'faculty' | 'room')
-//               }
-//             >
-//               <TabsList className="grid w-full grid-cols-4">
-//                 <TabsTrigger value="generate">Generate</TabsTrigger>
-//                 <TabsTrigger value="section" disabled={!schedule.length}>
-//                   By Section
-//                 </TabsTrigger>
-//                 <TabsTrigger value="faculty" disabled={!schedule.length}>
-//                   By Faculty
-//                 </TabsTrigger>
-//                 <TabsTrigger value="room" disabled={!schedule.length}>
-//                   By Room
-//                 </TabsTrigger>
-//               </TabsList>
-
-//               {/* ---------- GENERATE ---------- */}
-//               <TabsContent value="generate" className="mt-4">
-//                 <TimetableGenerator
-//                   onTimetableGenerated={handleTimetableGenerated}
-//                 />
-//               </TabsContent>
-
-//               {/* ---------- BY SECTION ---------- */}
-//               <TabsContent value="section" className="mt-4">
-//                 <Select
-//                   value={selectedSection}
-//                   onValueChange={setSelectedSection}
-//                 >
-//                   <SelectTrigger className="w-[280px] mb-4">
-//                     <SelectValue placeholder="Select section" />
-//                   </SelectTrigger>
-//                   <SelectContent>
-//                     {generatedSections.map(s => (
-//                       <SelectItem key={s} value={s}>
-//                         Section {s}
-//                       </SelectItem>
-//                     ))}
-//                   </SelectContent>
-//                 </Select>
-
-//                 <TimetableView
-//                   viewBy="section"
-//                   filterId={selectedSection}
-//                   schedule={schedule}
-//                 />
-//               </TabsContent>
-
-//               {/* ---------- BY FACULTY ---------- */}
-//               <TabsContent value="faculty" className="mt-4">
-//                 <Select
-//                   value={selectedFaculty}
-//                   onValueChange={setSelectedFaculty}
-//                 >
-//                   <SelectTrigger className="w-[280px] mb-4">
-//                     <SelectValue placeholder="Select faculty" />
-//                   </SelectTrigger>
-//                   <SelectContent>
-//                     {faculty.map(f => (
-//                       <SelectItem key={f.id} value={f.id}>
-//                         {f.name}
-//                       </SelectItem>
-//                     ))}
-//                   </SelectContent>
-//                 </Select>
-
-//                 <TimetableView
-//                   viewBy="faculty"
-//                   filterId={selectedFaculty}
-//                   schedule={schedule}
-//                 />
-//               </TabsContent>
-
-//               {/* ---------- BY ROOM ---------- */}
-//               <TabsContent value="room" className="mt-4">
-//                 <Select
-//                   value={selectedRoom}
-//                   onValueChange={setSelectedRoom}
-//                 >
-//                   <SelectTrigger className="w-[280px] mb-4">
-//                     <SelectValue placeholder="Select room" />
-//                   </SelectTrigger>
-//                   <SelectContent>
-//                     {rooms.map(r => (
-//                       <SelectItem key={r.id} value={r.id}>
-//                         {r.name}
-//                       </SelectItem>
-//                     ))}
-//                   </SelectContent>
-//                 </Select>
-
-//                 <TimetableView
-//                   viewBy="room"
-//                   filterId={selectedRoom}
-//                   schedule={schedule}
-//                 />
-//               </TabsContent>
-//             </Tabs>
-//           )}
-//         </CardContent>
-//       </Card>
-//     </div>
-//   );
-// }
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -279,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 import TimetableView from "@/components/timetable/timetable-view";
 import { TimetableGenerator } from "@/components/timetable/timetable-generator";
@@ -302,6 +51,8 @@ import { getSchedulesForTimetable, schedulesToEntries } from "@/services/schedul
 import { TimetableWorkflowBanner } from "@/components/timetable/timetable-workflow-banner";
 import type { TimetableMeta } from "@/types/timetable";
 import { getDoc } from "firebase/firestore";
+
+const EMPTY_ARRAY: never[] = [];
 
 export default function TimetablePageContent() {
   const searchParams = useSearchParams();
@@ -332,8 +83,8 @@ export default function TimetablePageContent() {
   const generatedSections = [...new Set(schedule.map((s) => s.section))].sort();
 
   const courses = coursesData ?? [];
-  const faculty = facultyData ?? [];
-  const rooms = roomsData ?? [];
+  const faculty = facultyData ?? EMPTY_ARRAY;
+  const rooms = roomsData ?? EMPTY_ARRAY;
   const sections = sectionsData ?? [];
   const timeslots = timeslotsData ?? [];
 
@@ -348,6 +99,8 @@ export default function TimetablePageContent() {
   const [editingRoomId, setEditingRoomId] = useState("");
   const [isSavingTimetable, setIsSavingTimetable] = useState(false);
   const [isDeletingTimetable, setIsDeletingTimetable] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [pdfMode, setPdfMode] = useState<"compact" | "detailed">("detailed");
 
   useEffect(() => {
@@ -865,48 +618,79 @@ export default function TimetablePageContent() {
               </TabsList>
             </Tabs>
 
-            <div className="rounded-xl border border-border/70 bg-muted/15 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium text-foreground">
-                    Timetable versions
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Load a saved version, edit slots, then save.
-                  </p>
+              <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs space-y-4">
+                {/* Top Control Bar: Context & Week Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <span className="text-muted-foreground">Viewing:</span>
+                    <Badge variant="outline" className="font-bold text-xs py-0.5">
+                      {viewBy === "section"
+                        ? `Section ${selectedSection || "All"}`
+                        : viewBy === "faculty"
+                        ? `Faculty ${faculty.find(f => f.id === selectedFaculty)?.name || selectedFaculty}`
+                        : `Room ${rooms.find(r => r.id === selectedRoom)?.name || selectedRoom}`}
+                    </Badge>
+                    <span className="text-muted-foreground ml-2">Week:</span>
+                    <span className="font-medium">Aug 10 – Aug 14, 2026</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" className="h-8 text-xs font-medium px-2.5">
+                      &lt; Previous Week
+                    </Button>
+                    <Button variant="secondary" size="sm" className="h-8 text-xs font-semibold px-3">
+                      Today
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs font-medium px-2.5">
+                      Next Week &gt;
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                  {sortedHistory.length > 0 && (
-                    <Select
-                      value={selectedHistoryId}
-                      onValueChange={handleHistorySelect}
-                    >
-                      <SelectTrigger className="h-9 w-full sm:w-[220px]">
-                        <SelectValue placeholder="Previous timetables" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sortedHistory.map((t: any) => {
-                          const date = t.createdAt
-                            ? new Date(t.createdAt.seconds * 1000)
-                            : null;
-                          const label = date
-                            ? date.toLocaleString()
-                            : "Untitled timetable";
-                          return (
-                            <SelectItem key={t.id} value={t.id}>
-                              {label}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  )}
+
+                {/* Versions & Actions Bar */}
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-foreground whitespace-nowrap">
+                      Version Management:
+                    </span>
+                    {sortedHistory.length > 0 ? (
+                      <Select
+                        value={selectedHistoryId}
+                        onValueChange={handleHistorySelect}
+                      >
+                        <SelectTrigger className="h-9 w-full sm:w-[220px]">
+                          <SelectValue placeholder="Select version..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sortedHistory.map((t: any, idx: number) => {
+                            const date = t.createdAt
+                              ? new Date(t.createdAt.seconds * 1000)
+                              : null;
+                            const label = `Version ${sortedHistory.length - idx} (${t.status || "Draft"})`;
+                            return (
+                              <SelectItem key={t.id} value={t.id}>
+                                <div className="flex items-center gap-2">
+                                  <span>{label}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {date ? date.toLocaleDateString() : ""}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Version 1 (Draft)</Badge>
+                    )}
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-2">
                     <Select
                       value={pdfMode}
                       onValueChange={(v) => setPdfMode(v as "compact" | "detailed")}
                     >
-                      <SelectTrigger className="h-9 w-[140px]">
+                      <SelectTrigger className="h-9 w-[130px] text-xs">
                         <SelectValue placeholder="PDF mode" />
                       </SelectTrigger>
                       <SelectContent>
@@ -914,81 +698,86 @@ export default function TimetablePageContent() {
                         <SelectItem value="detailed">Detailed PDF</SelectItem>
                       </SelectContent>
                     </Select>
+
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-9"
+                      className="h-9 text-xs font-medium"
                       onClick={handleSaveTimetable}
                       disabled={isSavingTimetable}
                     >
                       {isSavingTimetable ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                           Saving…
                         </>
                       ) : (
-                        "Save timetable"
+                        "Save"
                       )}
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      className="h-9"
-                      onClick={handleDeleteSavedTimetable}
-                      disabled={!selectedHistoryId || isDeletingTimetable}
-                    >
-                      {isDeletingTimetable ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting…
-                        </>
-                      ) : (
-                        "Delete timetable"
-                      )}
-                    </Button>
+
                     <Button
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="h-9 gap-2 border border-border/60 bg-background shadow-sm hover:bg-muted/80"
+                      className="h-9 text-xs font-medium gap-1.5"
                       onClick={handleDownloadPdf}
                       disabled={!schedule.length}
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-3.5 w-3.5" />
                       Download PDF
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => setShowPublishConfirm(true)}
+                      disabled={!schedule.length}
+                    >
+                      Publish
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-9 text-xs font-medium"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={!selectedHistoryId || isDeletingTimetable}
+                    >
+                      Delete
                     </Button>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {dataIsLoading ? (
-              <div className="flex h-64 items-center justify-center rounded-xl border border-dashed">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                {viewBy === "section" && (
-                  <div className="space-y-4" ref={timetableRef}>
-                    <Select
-                      value={selectedSection}
-                      onValueChange={setSelectedSection}
-                    >
-                      <SelectTrigger className="h-9 w-full max-w-md sm:w-[280px]">
-                        <SelectValue placeholder="Select section" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {generatedSections.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            Section {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {dataIsLoading ? (
+                <div className="flex h-64 items-center justify-center rounded-xl border border-dashed">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {viewBy === "section" && (
+                    <div className="space-y-4" ref={timetableRef}>
+                      <Select
+                        value={selectedSection}
+                        onValueChange={setSelectedSection}
+                      >
+                        <SelectTrigger className="h-9 w-full max-w-md sm:w-[280px]">
+                          <SelectValue placeholder="Select section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {generatedSections.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              Section {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
-                    <TimetableView
+                      <TimetableView
                         viewBy="section"
                         filterId={selectedSection}
                         schedule={schedule}
@@ -1067,6 +856,62 @@ export default function TimetablePageContent() {
             </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Modal for Delete */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Saved Timetable?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The selected timetable version will be permanently deleted from the workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setShowDeleteConfirm(false);
+                await handleDeleteSavedTimetable();
+              }}
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal for Publish */}
+      <Dialog open={showPublishConfirm} onOpenChange={setShowPublishConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish Timetable?</DialogTitle>
+            <DialogDescription>
+              Publishing this timetable makes it active and visible to all assigned HODs, Faculty, and Students.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPublishConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={async () => {
+                setShowPublishConfirm(false);
+                await handleSaveTimetable();
+                toast({
+                  title: "Timetable Published",
+                  description: "The timetable has been successfully published to all roles.",
+                });
+              }}
+            >
+              Confirm &amp; Publish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingEntry} onOpenChange={(open) => !open && setEditingEntry(null)}>
         <DialogContent>

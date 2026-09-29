@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -17,7 +18,9 @@ import {
   Faculty,
   Room,
   Timeslot,
+  Day,
 } from "@/lib/types";
+import { AlertTriangle, Clock, MapPin, User as UserIcon } from "lucide-react";
 
 interface TimetableViewProps {
   viewBy: "section" | "faculty" | "room";
@@ -28,6 +31,7 @@ interface TimetableViewProps {
   rooms: Room[];
   timeslots: Timeslot[];
   onEntryClick?: (entry: ScheduleEntry) => void;
+  conflicts?: Array<{ day?: string; timeslot?: string; description?: string }>;
 }
 
 export default function TimetableView({
@@ -39,7 +43,10 @@ export default function TimetableView({
   rooms,
   timeslots,
   onEntryClick,
+  conflicts = [],
 }: TimetableViewProps) {
+  const [selectedMobileDay, setSelectedMobileDay] = useState<Day>("Monday");
+
   const formatRangeTo12Hour = (range: string): string => {
     const [start, end] = range.split("-");
     if (!start || !end || !start.includes(":") || !end.includes(":")) {
@@ -90,7 +97,7 @@ export default function TimetableView({
       .filter((slot) => slot.day && slot.name);
   }, [timeslots]);
 
-  // Fast lookup maps (avoid repeated .find() calls while rendering the grid)
+  // Fast lookup maps
   const courseById = useMemo(() => {
     const m = new Map<string, Course>();
     for (const c of courses) m.set(c.id, c);
@@ -110,17 +117,16 @@ export default function TimetableView({
   }, [rooms]);
 
   const getCourseName = (id: string) =>
-    courseById.get(id)?.name || "Unknown Course";
+    courseById.get(id)?.name || "Course " + id;
 
   const getCourseCode = (id: string) =>
-    courseById.get(id)?.code || "...";
+    courseById.get(id)?.code || id;
 
   const getFacultyName = (id: string) =>
-    facultyNameById.get(id) || "...";
+    facultyNameById.get(id) || id;
 
-  const getRoomName = (id: string) => roomNameById.get(id) || "...";
+  const getRoomName = (id: string) => roomNameById.get(id) || id;
 
-  // Filter + index once per tab/filter change (O(n)), then render is O(1) per cell.
   const entryByDayTimeslot = useMemo(() => {
     const m = new Map<string, ScheduleEntry>();
     for (const entry of schedule) {
@@ -130,48 +136,85 @@ export default function TimetableView({
         (viewBy === "room" && entry.roomId === filterId);
 
       if (!matches) continue;
-      // key = "Monday|9-10"
       m.set(`${entry.day}|${entry.timeslot}`, entry);
     }
     return m;
   }, [schedule, viewBy, filterId]);
 
-  const getCellContent = (day: string, timeslot: string) => {
-    const entry = entryByDayTimeslot.get(`${day}|${timeslot}`);
+  const conflictByDayTimeslot = useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const c of conflicts) {
+      if (c.day && c.timeslot) {
+        m.set(`${c.day}|${c.timeslot}`, true);
+      }
+    }
+    return m;
+  }, [conflicts]);
 
-    if (!entry) return null;
+  const renderClassCard = (entry: ScheduleEntry, day: string, timeslot: string) => {
+    const isConflict = conflictByDayTimeslot.has(`${day}|${timeslot}`);
+    const isLab = entry.courseId.toLowerCase().includes("lab") || entry.courseId.includes("LAB");
 
     return (
       <Card
-        className="w-full cursor-pointer border border-primary/25 bg-primary/[0.07] p-2.5 text-left shadow-sm transition hover:border-primary/40 hover:bg-primary/[0.11]"
+        className={`w-full cursor-pointer p-3 text-left shadow-xs transition-all duration-150 rounded-xl ${
+          isConflict
+            ? "border-destructive/60 bg-destructive/10 hover:bg-destructive/15"
+            : "border-border bg-card hover:border-primary/50 hover:shadow-md"
+        }`}
         onClick={() => onEntryClick?.(entry)}
       >
-        <p className="font-semibold leading-snug text-primary text-[13px]">
-          <span className="line-clamp-2">
-            {getCourseName(entry.courseId)} (
-            {getCourseCode(entry.courseId)})
+        <div className="flex items-start justify-between gap-1.5 mb-1.5">
+          <Badge
+            variant="outline"
+            className={`text-[10px] font-bold py-0.5 px-2 tracking-wide uppercase ${
+              isConflict
+                ? "border-destructive text-destructive bg-destructive/10"
+                : isLab
+                ? "border-indigo-300 text-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 dark:text-indigo-300"
+                : "border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-300"
+            }`}
+          >
+            {isConflict ? "⚠ Conflict" : isLab ? `LAB · ${entry.section}` : `LEC · ${entry.section}`}
+          </Badge>
+          <span className="text-[10px] font-mono text-muted-foreground font-semibold">
+            {getCourseCode(entry.courseId)}
+          </span>
+        </div>
+
+        {/* Hierarchy 1: Course Name */}
+        <p className="font-headline text-xs font-bold text-foreground leading-snug line-clamp-2">
+          {getCourseName(entry.courseId)}
+        </p>
+
+        {/* Hierarchy 2: Faculty */}
+        <p className="mt-1.5 text-[11px] font-medium text-foreground/80 flex items-center gap-1 line-clamp-1">
+          <UserIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span>
+            {viewBy !== "faculty"
+              ? getFacultyName(entry.facultyId)
+              : `Section ${entry.section}`}
           </span>
         </p>
-        <p className="mt-1 text-[12px] leading-snug text-foreground/85 line-clamp-1">
-          {viewBy !== "faculty"
-            ? getFacultyName(entry.facultyId)
-            : `Sec ${entry.section}`}
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">
-          {viewBy !== "room"
-            ? getRoomName(entry.roomId)
-            : `Sec ${entry.section}`}
+
+        {/* Hierarchy 3: Room */}
+        <p className="mt-0.5 text-[11px] text-muted-foreground flex items-center gap-1 line-clamp-1">
+          <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span>
+            {viewBy !== "room"
+              ? getRoomName(entry.roomId)
+              : `Section ${entry.section}`}
+          </span>
         </p>
       </Card>
     );
   };
 
-  // All unique timeslot names sorted by order
   const allTimeslotNames = useMemo(() => {
-    const unique = [...new Set(timeslotsData.map(t => t.name))];
+    const unique = [...new Set(timeslotsData.map((t) => t.name))];
     unique.sort((a, b) => {
-      const aOrder = timeslotsData.find(t => t.name === a)?.order ?? 0;
-      const bOrder = timeslotsData.find(t => t.name === b)?.order ?? 0;
+      const aOrder = timeslotsData.find((t) => t.name === a)?.order ?? 0;
+      const bOrder = timeslotsData.find((t) => t.name === b)?.order ?? 0;
       return aOrder - bOrder;
     });
     return unique;
@@ -187,7 +230,6 @@ export default function TimetableView({
     return map;
   }, [timeslotsData]);
 
-  // Keep break rows visible even if they have no class entries.
   const visibleTimeslotNames = useMemo(() => {
     const used = new Set<string>();
     for (const key of entryByDayTimeslot.keys()) {
@@ -200,79 +242,129 @@ export default function TimetableView({
     );
     if (used.size === 0) return allTimeslotNames;
     return allTimeslotNames.filter((t) => used.has(t) || breakSlots.has(t));
-  }, [allTimeslotNames, entryByDayTimeslot]);
+  }, [allTimeslotNames, entryByDayTimeslot, timeslotsData]);
 
   if (!filterId) {
     return (
-      <div className="flex items-center justify-center h-48 border rounded-md">
-        <p className="text-muted-foreground">
-          Please select a filter to view the timetable.
-        </p>
+      <div className="flex flex-col items-center justify-center h-48 border border-dashed rounded-xl p-8 text-center bg-card">
+        <Clock className="h-8 w-8 text-muted-foreground mb-2" />
+        <p className="text-sm font-semibold text-foreground">Select a filter to view schedule</p>
+        <p className="text-xs text-muted-foreground mt-1">Choose a section, faculty member, or room allocation.</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/80 bg-card shadow-sm">
-      <Table className="min-w-max">
-        <TableHeader>
-          <TableRow className="border-b bg-muted/40 hover:bg-muted/40">
-            <TableHead className="w-[88px] min-w-[88px] border-r font-headline text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Time
-            </TableHead>
-            {AllDays.map((day) => (
-              <TableHead
-                key={day}
-                className="min-w-[140px] text-center font-headline text-sm font-semibold"
-              >
-                {day}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+    <div className="space-y-4">
+      {/* Mobile Responsive Selector (Visible on small screens) */}
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {AllDays.map((day) => (
+          <button
+            key={day}
+            onClick={() => setSelectedMobileDay(day)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+              selectedMobileDay === day
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {day}
+          </button>
+        ))}
+      </div>
 
-        <TableBody>
-          {visibleTimeslotNames.map((timeslotName) => (
-            <TableRow
-              key={timeslotName}
-              className={`border-b last:border-0 hover:bg-muted/20 ${
-                timeslotsData.some((t) => t.name === timeslotName && t.isBreak)
-                  ? "bg-amber-50/70"
-                  : ""
-              }`}
-            >
-              <TableCell className="border-r bg-muted/25 py-2 align-middle text-xs font-medium tabular-nums text-muted-foreground">
+      {/* Mobile Day Timeline View */}
+      <div className="md:hidden space-y-3">
+        {visibleTimeslotNames.map((timeslotName) => {
+          const entry = entryByDayTimeslot.get(`${selectedMobileDay}|${timeslotName}`);
+          const daySlot = timeslotsData.find(
+            (t) => t.day === selectedMobileDay && t.name === timeslotName
+          );
+
+          return (
+            <div key={timeslotName} className="space-y-1.5">
+              <span className="text-[11px] font-bold text-muted-foreground tracking-wide uppercase">
                 {timeslotDisplayNameByName.get(timeslotName) ?? timeslotName}
-              </TableCell>
+              </span>
+              {daySlot?.isBreak ? (
+                <div className="flex py-2.5 px-3 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 text-xs font-bold text-amber-800 dark:text-amber-300">
+                  BREAK
+                </div>
+              ) : entry ? (
+                renderClassCard(entry, selectedMobileDay, timeslotName)
+              ) : (
+                <div className="flex p-3 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-xs font-medium text-muted-foreground">
+                  FREE · No class scheduled
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-              {AllDays.map((day) => {
-                const daySlot = timeslotsData.find(
-                  (t) => t.day === day && t.name === timeslotName
-                );
-
-                return (
-                  <TableCell
-                    key={day}
-                    className="p-1.5 align-top min-h-[4rem] max-w-[200px]"
-                  >
-                    {daySlot ? (
-                      daySlot.isBreak ? (
-                        <div className="flex min-h-[2rem] items-center justify-center rounded-md border border-amber-200 bg-amber-100 text-xs font-semibold text-amber-900">
-                          Break
-                        </div>
-                      ) : (
-                        getCellContent(day, timeslotName)
-                      )
-                    ) : (
-                      <div className="min-h-[2rem] w-full rounded-md bg-muted/25" />
-                    )}
-                  </TableCell>
-                );
-              })}
+      {/* Desktop Weekly Grid View */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-border/80 bg-card shadow-xs">
+        <Table className="min-w-max">
+          <TableHeader>
+            <TableRow className="border-b bg-muted/40 hover:bg-muted/40">
+              <TableHead className="sticky left-0 z-10 w-[110px] min-w-[110px] border-r bg-muted/90 backdrop-blur-xs font-headline text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Time
+              </TableHead>
+              {AllDays.map((day) => (
+                <TableHead
+                  key={day}
+                  className="min-w-[170px] max-w-[220px] text-center font-headline text-sm font-bold text-foreground py-3"
+                >
+                  {day}
+                </TableHead>
+              ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+
+          <TableBody>
+            {visibleTimeslotNames.map((timeslotName) => (
+              <TableRow
+                key={timeslotName}
+                className={`border-b last:border-0 hover:bg-muted/20 ${
+                  timeslotsData.some((t) => t.name === timeslotName && t.isBreak)
+                    ? "bg-amber-50/50 dark:bg-amber-950/20"
+                    : ""
+                }`}
+              >
+                <TableCell className="sticky left-0 z-10 border-r bg-muted/90 backdrop-blur-xs py-3 px-3 align-middle text-xs font-semibold tabular-nums text-muted-foreground">
+                  {timeslotDisplayNameByName.get(timeslotName) ?? timeslotName}
+                </TableCell>
+
+                {AllDays.map((day) => {
+                  const daySlot = timeslotsData.find(
+                    (t) => t.day === day && t.name === timeslotName
+                  );
+                  const entry = entryByDayTimeslot.get(`${day}|${timeslotName}`);
+
+                  return (
+                    <TableCell
+                      key={day}
+                      className="p-1.5 align-top min-h-[5rem] max-w-[220px]"
+                    >
+                      {daySlot?.isBreak ? (
+                        <div className="flex min-h-[4rem] items-center justify-center rounded-lg border border-amber-200 bg-amber-100/70 dark:bg-amber-950/40 text-xs font-extrabold tracking-wider text-amber-900 dark:text-amber-200">
+                          BREAK
+                        </div>
+                      ) : entry ? (
+                        renderClassCard(entry, day, timeslotName)
+                      ) : (
+                        <div className="flex min-h-[4.5rem] w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/15 p-2 text-center">
+                          <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">FREE</span>
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

@@ -276,8 +276,8 @@ export default function SectionsPage() {
               Are you absolutely sure?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete section "
-              {selectedSection?.name}".
+              This will permanently delete section &quot;
+              {selectedSection?.name}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

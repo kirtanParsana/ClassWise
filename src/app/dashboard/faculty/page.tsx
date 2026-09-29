@@ -565,8 +565,8 @@ export default function FacultyPage() {
               Are you absolutely sure?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "
-              {selectedFaculty?.name}".
+              This will permanently delete &quot;
+              {selectedFaculty?.name}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

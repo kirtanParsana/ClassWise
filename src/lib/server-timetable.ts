@@ -2,8 +2,14 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/firebase/admin";
 import { omitUndefined } from "@/lib/firestore-utils";
 import { canTransition, type TimetableStatus } from "@/types/timetable";
-import type { ScheduleEntry, Course, Faculty, Room } from "@/lib/types";
-import { detectConflicts, countConflicts } from "@/lib/conflict-detection";
+import type {
+  ScheduleEntry,
+  Course,
+  Faculty,
+  Room,
+  Section,
+  Day,
+} from "@/lib/types";import { detectConflicts, countConflicts } from "@/lib/conflict-detection";
 import { scheduleEntryToDoc } from "@/lib/timetable-utils";
 import type { AuthenticatedUser } from "@/lib/server-auth";
 
@@ -11,6 +17,123 @@ export async function getTimetableData(timetableId: string) {
   const snap = await adminDb.collection("timetables").doc(timetableId).get();
   if (!snap.exists) return null;
   return { id: snap.id, ...snap.data() } as Record<string, unknown> & { id: string };
+}
+
+export type TimetableAction =
+  | "generate"
+  | "save"
+  | "submit"
+  | "request-changes"
+  | "approve"
+  | "publish"
+  | "resubmit"
+  | "view"
+  | "conflict-check"
+  | "create-suggestion";
+
+export function authorizeTimetableAccess(
+  user: AuthenticatedUser,
+  timetable: Record<string, unknown> & { id: string },
+  action: TimetableAction
+): void {
+  const timetableDepartmentId = timetable.departmentId;
+
+  if (typeof timetableDepartmentId !== "string" || !timetableDepartmentId) {
+    throw new Error("Timetable has no valid department");
+  }
+
+  if (
+    typeof user.profile.departmentId !== "string" ||
+    !user.profile.departmentId
+  ) {
+    throw new Error("User has no authorized department");
+  }
+
+  if (user.profile.departmentId !== timetableDepartmentId) {
+    throw new Error("You are not authorized to access this timetable");
+  }
+
+  const status = (timetable.status as TimetableStatus) ?? "draft";
+
+  switch (action) {
+    case "save":
+    case "submit":
+    case "resubmit":
+      if (user.role !== "coordinator") {
+        throw new Error("Only coordinators can perform this action");
+      }
+
+      if (
+        !["draft", "generated", "changes_requested"].includes(status)
+      ) {
+        throw new Error(
+          "This timetable cannot be modified in its current status"
+        );
+      }
+      return;
+
+    case "request-changes":
+    case "approve":
+      if (user.role !== "hod") {
+        throw new Error("Only HODs can perform this action");
+      }
+
+      if (status !== "under_review") {
+        throw new Error(
+          "This action is only available while the timetable is under review"
+        );
+      }
+      return;
+
+    case "publish":
+      if (user.role !== "hod") {
+        throw new Error("Only HODs can publish timetables");
+      }
+
+      if (status !== "approved") {
+        throw new Error(
+          "Only approved timetables can be published"
+        );
+      }
+      return;
+
+    case "conflict-check":
+      if (!["coordinator", "hod"].includes(user.role)) {
+        throw new Error(
+          "Only coordinators and HODs can check timetable conflicts"
+        );
+      }
+      return;
+
+    case "create-suggestion":
+      if (user.role !== "hod") {
+        throw new Error("Only HODs can create suggestions");
+      }
+
+      if (status !== "under_review") {
+        throw new Error(
+          "Suggestions can only be created for timetables under review"
+        );
+      }
+      return;
+
+    case "view":
+      if (!["coordinator", "hod"].includes(user.role)) {
+        throw new Error(
+          "You are not authorized to view this timetable"
+        );
+      }
+      return;
+
+    case "generate":
+      if (user.role !== "coordinator") {
+        throw new Error("Only coordinators can generate timetables");
+      }
+      return;
+
+    default:
+      throw new Error("Unsupported timetable action");
+  }
 }
 
 export async function getScheduleEntriesForTimetable(
@@ -201,29 +324,65 @@ export async function transitionTimetableStatus(
 }
 
 export async function fetchMasterDataForLookup() {
-  const [coursesSnap, facultySnap, roomsSnap, timeslotsSnap] = await Promise.all([
+  const [
+    coursesSnap,
+    facultySnap,
+    roomsSnap,
+    sectionsSnap,
+    timeslotsSnap,
+  ] = await Promise.all([
     adminDb.collection("courses").get(),
     adminDb.collection("faculties").get(),
     adminDb.collection("rooms").get(),
+    adminDb.collection("sections").get(),
     adminDb.collection("timeslots").get(),
   ]);
 
-  return {
-    courses: coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Course[],
-    faculty: facultySnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Faculty[],
-    rooms: roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Room[],
+    return {
+    courses: coursesSnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as Course[],
+
+    faculty: facultySnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as Faculty[],
+
+    rooms: roomsSnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as Room[],
+
+    sections: sectionsSnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as Section[],
+
     timeslots: timeslotsSnap.docs.map((d) => {
       const t = d.data();
+
       const name =
         t.name ??
-        (t.startTime && t.endTime ? `${t.startTime}-${t.endTime}` : "");
+        (t.startTime && t.endTime
+          ? `${t.startTime}-${t.endTime}`
+          : "");
+
+      const order =
+        typeof t.order === "number"
+          ? t.order
+          : t.startTime
+            ? Number(t.startTime.split(":")[0]) * 60 +
+              Number(t.startTime.split(":")[1] ?? 0)
+            : 0;
+
       return {
         id: d.id,
-        day: t.day as string,
+        day: t.day as Day,
         name,
         startTime: t.startTime as string | undefined,
         endTime: t.endTime as string | undefined,
-        order: t.order as number | undefined,
+        order,
       };
     }),
   };

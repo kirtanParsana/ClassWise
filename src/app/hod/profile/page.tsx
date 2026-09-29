@@ -35,7 +35,7 @@ export default function HODProfilePage() {
             Coming Soon
           </CardTitle>
           <CardDescription className="max-w-md mx-auto mt-2">
-            The HOD profile management page is under construction. You'll be able to update your personal details, department information, and preferences here.
+            The HOD profile management page is under construction. You&apos;ll be able to update your personal details, department information, and preferences here.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">

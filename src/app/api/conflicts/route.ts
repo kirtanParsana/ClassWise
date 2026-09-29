@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, authErrorResponse } from "@/lib/server-auth";
 import {
+  getTimetableData,
   getScheduleEntriesForTimetable,
+  authorizeTimetableAccess,
   runConflictCheck,
   persistConflicts,
 } from "@/lib/server-timetable";
@@ -11,9 +13,29 @@ import type { Course, Room } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(request.headers.get("authorization"), ["coordinator", "hod"]);
+    const user = await requireRole(
+      request.headers.get("authorization"),
+      ["coordinator", "hod"]
+    );
 
     const timetableId = request.nextUrl.searchParams.get("timetableId");
+
+    if (timetableId) {
+      const timetable = await getTimetableData(timetableId);
+
+      if (!timetable) {
+        return NextResponse.json(
+          { success: false, error: "Timetable not found" },
+          { status: 404 }
+        );
+      }
+
+      authorizeTimetableAccess(user, timetable, "conflict-check");
+
+      const { conflicts, total, critical, warnings } =
+        await runConflictCheck(timetableId);
+
+    }
 
     if (timetableId) {
       const { conflicts, total, critical, warnings } = await runConflictCheck(timetableId);
@@ -27,8 +49,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, totalConflicts: total, critical, warnings, conflicts });
     }
 
+    const departmentId = user.profile.departmentId;
+
+    if (!departmentId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your account is not assigned to a department",
+        },
+        { status: 403 }
+      );
+    }
+
     const timetablesSnap = await adminDb
       .collection("timetables")
+      .where("departmentId", "==", departmentId)
       .orderBy("updatedAt", "desc")
       .limit(1)
       .get();
