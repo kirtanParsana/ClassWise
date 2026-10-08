@@ -32,9 +32,6 @@ export async function GET(request: NextRequest) {
 
       authorizeTimetableAccess(user, timetable, "conflict-check");
 
-      const { conflicts, total, critical, warnings } =
-        await runConflictCheck(timetableId);
-
     }
 
     if (timetableId) {

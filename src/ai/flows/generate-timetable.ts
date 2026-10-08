@@ -207,7 +207,7 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
     }
   });
 
-  console.log("⏰ Initialized usage tracking for", usage.size, "unique timeslots");
+  // console.log("⏰ Initialized usage tracking for", usage.size, "unique timeslots");
 
   // Group timeslots by day and sort by order
   const timeslotsByDay = new Map<Day, Timeslot[]>();
@@ -218,7 +218,7 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
       .filter(ts => ts.day === day)
       .sort((a, b) => a.order - b.order);
     timeslotsByDay.set(day, daySlots);
-    console.log(`📅 ${day}: ${daySlots.length} timeslots`, daySlots.length > 0 ? `(e.g., ${daySlots[0]?.name})` : '');
+    // console.log(`📅 ${day}: ${daySlots.length} timeslots`, daySlots.length > 0 ? `(e.g., ${daySlots[0]?.name})` : '');
   });
 
   // Check if we have timeslots for any day
@@ -244,10 +244,10 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
       continue;
     }
 
-    console.log(`📚 Processing course: ${course.code} (${course.name}) - ${course.requiresLab ? 'Lab' : 'Classroom'}, Credits: ${course.credits}`);
+    // console.log(`📚 Processing course: ${course.code} (${course.name}) - ${course.requiresLab ? 'Lab' : 'Classroom'}, Credits: ${course.credits}`);
 
     for (const section of [...sections].sort((a, b) => a.localeCompare(b))) {
-      console.log(`  📖 Section: ${section}`);
+      // console.log(`  📖 Section: ${section}`);
       // Resolve the single faculty that will teach this subject in this section
       const effectiveFacultyId = getFacultyForCourseSection(course, section);
       const courseFaculty = faculty.find(f => f.id === effectiveFacultyId);
@@ -359,7 +359,7 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
         if (labBlocksScheduled < course.credits) {
           console.warn(`⚠️ Could not schedule all ${course.credits} lab blocks for ${course.code} section ${section}, scheduled ${labBlocksScheduled}`);
         } else {
-          console.log(`  ✅ Scheduled ${labBlocksScheduled} lab blocks for ${course.code} section ${section}`);
+          // console.log(`  ✅ Scheduled ${labBlocksScheduled} lab blocks for ${course.code} section ${section}`);
         }
       } else {
         // Classroom courses: schedule credits number of 1-hour lectures
@@ -442,7 +442,7 @@ export async function generateTimetable(input: GenerateTimetableInput): Promise<
         }
         
         if (lecturesScheduled > 0) {
-          console.log(`  ✅ Scheduled ${lecturesScheduled}/${course.credits} lectures for ${course.code} section ${section}`);
+          // console.log(`  ✅ Scheduled ${lecturesScheduled}/${course.credits} lectures for ${course.code} section ${section}`);
         } else {
           console.warn(`  ⚠️ Could not schedule any lectures for ${course.code} section ${section}`);
         }

@@ -5,7 +5,6 @@ import { requireRole, authErrorResponse } from "@/lib/server-auth";
 import { generateTimetable } from "@/ai/flows/generate-timetable";
 import {
   syncScheduleDocs,
-  runConflictCheck,
   persistConflicts,
   fetchMasterDataForLookup,
 } from "@/lib/server-timetable";
